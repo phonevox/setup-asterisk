@@ -21,5 +21,6 @@ Este repositório contém um script Bash para automatizar a instalação e confi
 
 1. **Clone este repositório:**
    ```bash
-   git clone https://github.com/seuusuario/seurepo.git
-   cd seurepo
+   git clone https://github.com/phonevox/setup-asterisk
+   cd setup-asterisk
+   bash install.sh
