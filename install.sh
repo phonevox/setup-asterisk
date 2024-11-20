@@ -91,19 +91,22 @@ debug = 3
 EOF'
 success_check "Asterisk configurado com sucesso."
 
-# Instalando Nginx
-msg "Configurando a WEB do servidor..."
-# Remover Apache se estiver instalado
+# Instalar PHP e remover Apache, se instalado
+msg "Instalando PHP..."
+sudo apt install -y php php-cli php-mysql
+success_check "PHP instalado com sucesso."
+
+# Verificar e remover Apache se instalado
 if dpkg -l | grep -q apache2; then
-    msg "Removendo Apache..."
+    msg "Removendo Apache, instalado como dependência do PHP..."
     sudo service apache2 stop || true
-    sudo service apache2 stop || true
-    sudo apt remove -y apache2 || true
+    sudo apt remove --purge -y apache2 apache2-* || true
     success_check "Apache removido com sucesso."
 else
-    success_check "Apache não está instalado."
+    success_check "Apache não foi instalado como dependência."
 fi
 
+# Instalando Nginx
 sudo apt install -y nginx
 success_check "Nginx instalado com sucesso."
 
@@ -123,52 +126,56 @@ success_check "Porta SIP configurada com sucesso."
 # Habilitando criptografia
 sudo bash -c 'echo "encryption=yes" >> /etc/asterisk/sip.conf'
 
+# Perguntar se o usuário deseja instalar o MongoDB
+read -p "Você deseja instalar o MongoDB? (s/n): " INSTALL_MONGO
+INSTALL_MONGO=${INSTALL_MONGO,,} # Converte para minúsculas
 
-# Remover completamente o MongoDB, se estiver instalado
-msg "Removendo MongoDB..."
-sudo apt remove --purge mongodb-org* -y
-sudo rm -rf /var/lib/mongodb /etc/mongod.conf /var/log/mongodb
-sudo rm /usr/share/keyrings/mongodb-archive-keyring.gpg
-sudo rm /etc/apt/sources.list.d/mongodb-org-*.list
-sudo apt update
+if [[ "$INSTALL_MONGO" == "s" || "$INSTALL_MONGO" == "sim" ]]; then
+    # Remover completamente o MongoDB, se estiver instalado
+    msg "Removendo MongoDB..."
+    sudo apt remove --purge mongodb-org* -y
+    sudo rm -rf /var/lib/mongodb /etc/mongod.conf /var/log/mongodb
+    sudo rm /usr/share/keyrings/mongodb-archive-keyring.gpg
+    sudo rm /etc/apt/sources.list.d/mongodb-org-*.list
+    sudo apt update
 
-# Instalar dependências necessárias
-msg "Instalando dependências necessárias..."
-sudo apt install -y wget gnupg
+    # Instalar dependências necessárias
+    msg "Instalando dependências necessárias..."
+    sudo apt install -y wget gnupg
 
-# Adicionar a chave e o repositório do MongoDB 8.0 para o Ubuntu 22.04
-msg "Adicionando chave e repositório do MongoDB..."
-wget -qO - https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/mongodb-archive-keyring.gpg] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+    # Adicionar a chave e o repositório do MongoDB 8.0 para o Ubuntu 22.04
+    msg "Adicionando chave e repositório do MongoDB..."
+    wget -qO - https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/mongodb-archive-keyring.gpg] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
 
-# Atualizar o índice de pacotes e instalar o MongoDB
-msg "Atualizando pacotes e instalando MongoDB..."
-sudo apt update
-sudo apt install -y mongodb-org
-success_check "MongoDB instalado com sucesso."
+    # Atualizar o índice de pacotes e instalar o MongoDB
+    msg "Atualizando pacotes e instalando MongoDB..."
+    sudo apt update
+    sudo apt install -y mongodb-org
+    success_check "MongoDB instalado com sucesso."
 
-# Remover o arquivo de socket, se existir
-sudo rm -f /tmp/mongodb-27017.sock
+    # Remover o arquivo de socket, se existir
+    sudo rm -f /tmp/mongodb-27017.sock
 
-# Iniciar o serviço MongoDB
-msg "Iniciando o serviço MongoDB..."
-sudo systemctl start mongod
+    # Iniciar o serviço MongoDB
+    msg "Iniciando o serviço MongoDB..."
+    sudo systemctl start mongod
 
-# Verificar o status do serviço MongoDB
-if sudo systemctl status mongod | grep "running"; then
-    success_check "MongoDB iniciado com sucesso."
-else
-    echo "❌ O MongoDB não conseguiu iniciar. Verifique os logs para mais detalhes."
-    exit 1
-fi
+    # Verificar o status do serviço MongoDB
+    if sudo systemctl status mongod | grep "running"; then
+        success_check "MongoDB iniciado com sucesso."
+    else
+        echo "❌ O MongoDB não conseguiu iniciar. Verifique os logs para mais detalhes."
+        exit 1
+    fi
 
-# Configurar o usuário administrador
-msg "Configurando o usuário administrador..."
-read -s -p "Digite a senha para o usuário administrador: " admin_password
-echo # Para pular a linha após a entrada da senha
+    # Configurar o usuário administrador
+    msg "Configurando o usuário administrador..."
+    read -s -p "Digite a senha para o usuário administrador: " admin_password
+    echo # Para pular a linha após a entrada da senha
 
-# Usar mongosh para configurar o usuário
-mongosh <<EOF
+    # Usar mongosh para configurar o usuário
+    mongosh <<EOF
 use admin
 db.createUser({
   user: "admin",
@@ -177,11 +184,14 @@ db.createUser({
 })
 EOF
 
-# Reiniciar o MongoDB
-msg "Reiniciando o MongoDB..."
-sudo systemctl restart mongod
+    # Reiniciar o MongoDB
+    msg "Reiniciando o MongoDB..."
+    sudo systemctl restart mongod
 
-success_check "Instalação e configuração do MongoDB concluídas com sucesso!"
+    success_check "Instalação e configuração do MongoDB concluídas com sucesso!"
+else
+    msg "Instalação do MongoDB pulada pelo usuário."
+fi
 
 echo ""
 echo ""
